@@ -7,11 +7,15 @@ shaders = [
 
 foreach name : shaders
     output = name.underscorify() + '_src.h'
+    path = join_paths(meson.current_source_dir(), name)
     files += custom_target(
         output,
-        command: [embed, name, name.underscorify() + '_src'],
+        command: [embed, path, name.underscorify() + '_src'],
         output: output,
         capture: true,
+        install: true,
+        install_dir: './',
+        build_always_stale: true,
     )
 endforeach
 
