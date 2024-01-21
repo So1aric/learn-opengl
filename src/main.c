@@ -39,6 +39,22 @@ static void check_error_impl(unsigned int line_number) {
 
 #define check_error() check_error_impl(__LINE__)
 
+static GLuint compile_shader(const char *src, const int shader_type) {
+    GLuint shader = glCreateShader(shader_type);
+    glShaderSource(shader, 1, &src, NULL);
+    glCompileShader(shader);
+
+    GLint success; GLchar info[512];
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (!success) {
+        glGetShaderInfoLog(shader, 512, NULL, info);
+        printf("Compile error: %s\n", info);
+        return -1;
+    }
+
+    return shader;
+}
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -77,24 +93,8 @@ int main() {
     glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void *)(4 * sizeof(float)));
     glEnableVertexAttribArray(2);
     
-    GLint success; GLchar info[512];
-    
-    GLuint vert_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vert_shader, 1, &common_vert_src, NULL);
-    glCompileShader(vert_shader);
-    glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vert_shader, 512, NULL, info);
-        puts(info);
-    }
-    GLuint frag_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(frag_shader, 1, &common_frag_src, NULL);
-    glCompileShader(frag_shader);
-    glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(frag_shader, 512, NULL, info);
-        puts(info);
-    }
+    GLuint vert_shader = compile_shader(common_vert_src, GL_VERTEX_SHADER);
+    GLuint frag_shader = compile_shader(common_frag_src, GL_FRAGMENT_SHADER);
 
     GLuint shad_prog = glCreateProgram();
     glAttachShader(shad_prog, vert_shader);
@@ -116,9 +116,7 @@ int main() {
     unsigned char *data = stbi_load("assets/img.jpg", &width, &height, &nchannel, 0);
     if (!data) puts("Failed loading picture.");
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-    glGenerateMipmap(GL_TEXTURE_2D);
     stbi_image_free(data);
-    check_error();
 
     glUseProgram(shad_prog);
     glUniform1i(glGetUniformLocation(shad_prog, "texture0"), 0);
