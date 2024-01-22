@@ -2,6 +2,8 @@
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
+#include "cglm/cglm.h"
+#include "chipmunk/chipmunk.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -10,17 +12,18 @@
 #include "src/shaders/common_vert_src.h"
 #include "src/shaders/common_frag_src.h"
 
-#define WIDTH 1000
-#define HEIGHT 1000
+#define WIDTH  600
+#define HEIGHT 600
 #define TITLE "devfloat"
 
 float vertices[] = {
-   // position, tex_coord,          color,
-    -0.9, -0.9,  0.0, 0.0,  0.7, 0.6, 0.5, // left  bottom
-     0.9, -0.9,  1.0, 0.0,  0.9, 0.1, 0.2, // right bottom
-    -0.9,  0.9,  0.0, 1.0,  0.7, 0.3, 0.7, // left  top
-     0.9,  0.9,  1.0, 1.0,  1.0, 0.8, 0.2, // right top
+   //           position,
+    -1.0, -1.0, 0.0, 0.0, // left  bottom
+     1.0, -1.0, 1.0, 0.0, // right bottom
+    -1.0,  1.0, 0.0, 1.0, // left  top
+     1.0,  1.0, 1.0, 1.0, // right top
 };
+GLuint vbo;
 
 unsigned int indices[] = {
     0, 1, 2,
@@ -55,6 +58,37 @@ static GLuint compile_shader(const char *src, const int shader_type) {
     return shader;
 }
 
+static GLuint create_shader_program(const char *vert_src, const char *frag_src) {
+    GLuint vert_shader = compile_shader(vert_src, GL_VERTEX_SHADER);
+    GLuint frag_shader = compile_shader(frag_src, GL_FRAGMENT_SHADER);
+
+    GLuint shad_prog = glCreateProgram();
+    glAttachShader(shad_prog, vert_shader);
+    glAttachShader(shad_prog, frag_shader);
+    glLinkProgram(shad_prog);
+
+    return shad_prog;
+}
+
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+    glViewport(0, 0, width, height);
+}
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+    switch (key) {
+    case GLFW_KEY_ENTER:
+        glfwSetWindowShouldClose(window, true);
+        break;
+    case GLFW_KEY_DOWN:
+        for (int i = 0; i < 4; i++) {
+            vertices[i*4 + 1] -= 0.01;
+        }
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+}
+
 int main() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -63,6 +97,8 @@ int main() {
     
     GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, TITLE, NULL, NULL);
     glfwMakeContextCurrent(window);
+    glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+    glfwSetKeyCallback(window, key_callback);
 
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
@@ -74,10 +110,9 @@ int main() {
     GLuint vao;
     glGenVertexArrays(1, &vao);
 
-    GLuint vbo;
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
 
     GLuint ebo;
     glGenBuffers(1, &ebo);
@@ -86,20 +121,10 @@ int main() {
 
     glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void *)(2 * sizeof(float)));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 7 * sizeof(float), (void *)(4 * sizeof(float)));
-    glEnableVertexAttribArray(2);
     
-    GLuint vert_shader = compile_shader(common_vert_src, GL_VERTEX_SHADER);
-    GLuint frag_shader = compile_shader(common_frag_src, GL_FRAGMENT_SHADER);
-
-    GLuint shad_prog = glCreateProgram();
-    glAttachShader(shad_prog, vert_shader);
-    glAttachShader(shad_prog, frag_shader);
-    glLinkProgram(shad_prog);
+    GLuint shad_prog = create_shader_program(common_vert_src, common_frag_src);
 
     GLuint texture;
     glGenTextures(1, &texture);
@@ -121,6 +146,7 @@ int main() {
     glUseProgram(shad_prog);
     glUniform1i(glGetUniformLocation(shad_prog, "texture0"), 0);
 
+    check_error();
     while (!glfwWindowShouldClose(window)) {
         glUseProgram(shad_prog);
         glBindTexture(GL_TEXTURE_2D, texture);

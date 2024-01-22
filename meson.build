@@ -4,6 +4,8 @@ cc = meson.get_compiler('c')
 
 math = cc.find_library('m')
 glfw = cc.find_library('glfw')
+cglm = cc.find_library('cglm')
+chipmunk = cc.find_library('chipmunk')
 
 files = files()
 subdir('src')
@@ -19,5 +21,7 @@ executable(
     dependencies: [
         math,
         glfw,
-    ]
+        cglm,
+        chipmunk,
+    ],
 )
