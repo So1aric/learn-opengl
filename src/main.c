@@ -12,9 +12,20 @@
 #include "src/shaders/common_vert_src.h"
 #include "src/shaders/common_frag_src.h"
 
-#define WIDTH  600
-#define HEIGHT 600
+#define WIDTH  800
+#define HEIGHT 800
 #define TITLE "devfloat"
+
+float mouse_pos[2] = { 0.5, 0.5 };
+
+typedef struct Rect {
+    vec2 pos; float rot;
+} Rect;
+
+Rect koharu = {
+    .pos = { 0.0, 0.5 },
+    .rot = 0.0,
+};
 
 float vertices[] = {
    //           position,
@@ -84,9 +95,14 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             vertices[i*4 + 1] -= 0.01;
         }
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
+}
+
+void cursor_pos_callback(GLFWwindow *window, double x, double y) {
+    mouse_pos[0] = x / WIDTH;
+    mouse_pos[1] = 1 - y / HEIGHT;
 }
 
 int main() {
@@ -99,6 +115,7 @@ int main() {
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
+    glfwSetCursorPosCallback(window, cursor_pos_callback);
 
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
@@ -149,6 +166,9 @@ int main() {
     check_error();
     while (!glfwWindowShouldClose(window)) {
         glUseProgram(shad_prog);
+
+        glUniform2fv(glGetUniformLocation(shad_prog, "mouse_pos"), 1, mouse_pos);
+
         glBindTexture(GL_TEXTURE_2D, texture);
         glBindVertexArray(vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
