@@ -3,42 +3,38 @@
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 #include "cglm/cglm.h"
-#include "chipmunk/chipmunk.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 
+#define PHYSAC_IMPLEMENTATION
+#define PHYSAC_STANDALONE
+#include "physac.h"
+#undef PHYSAC_IMPLEMENTATION
+
 #include "src/shaders/common_vert_src.h"
 #include "src/shaders/common_frag_src.h"
 
+#define TITLE "devfloat"
 #define WIDTH  800
 #define HEIGHT 800
-#define TITLE "devfloat"
+float window_width = WIDTH;
+float window_height = HEIGHT;
 
 float mouse_pos[2] = { 0.5, 0.5 };
 
-typedef struct Rect {
-    vec2 pos; float rot;
-} Rect;
-
-Rect koharu = {
-    .pos = { 0.0, 0.5 },
-    .rot = 0.0,
-};
-
 float vertices[] = {
    //           position,
-    -1.0, -1.0, 0.0, 0.0, // left  bottom
      1.0, -1.0, 1.0, 0.0, // right bottom
-    -1.0,  1.0, 0.0, 1.0, // left  top
      1.0,  1.0, 1.0, 1.0, // right top
+    -1.0,  1.0, 0.0, 1.0, // left  top
+    -1.0, -1.0, 0.0, 0.0, // left  bottom
 };
-GLuint vbo;
 
 unsigned int indices[] = {
     0, 1, 2,
-    1, 2, 3
+    0, 2, 3,
 };
 
 static void check_error_impl(unsigned int line_number) {
@@ -83,6 +79,8 @@ static GLuint create_shader_program(const char *vert_src, const char *frag_src) 
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
+    window_width = width;
+    window_height = height;
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -91,27 +89,24 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         glfwSetWindowShouldClose(window, true);
         break;
     case GLFW_KEY_DOWN:
-        for (int i = 0; i < 4; i++) {
-            vertices[i*4 + 1] -= 0.01;
-        }
-        glBindBuffer(GL_ARRAY_BUFFER, vbo);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        break;
     }
 }
 
 void cursor_pos_callback(GLFWwindow *window, double x, double y) {
-    mouse_pos[0] = x / WIDTH;
-    mouse_pos[1] = 1 - y / HEIGHT;
+    mouse_pos[0] = x / window_width;
+    mouse_pos[1] = 1 - y / window_height;
 }
 
-int main() {
+GLFWwindow *window;
+GLuint vao, vbo, ebo, texture, shad_prog;
+void init_opengl() {
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     
-    GLFWwindow *window = glfwCreateWindow(WIDTH, HEIGHT, TITLE, NULL, NULL);
+    window = glfwCreateWindow(window_width, window_height, TITLE, NULL, NULL);
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetKeyCallback(window, key_callback);
@@ -119,19 +114,17 @@ int main() {
 
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-    glViewport(0, 0, WIDTH, HEIGHT);
+    glViewport(0, 0, window_width, window_height);
 
     glClearColor(0.8f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    GLuint vao;
     glGenVertexArrays(1, &vao);
 
     glGenBuffers(1, &vbo);
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
 
-    GLuint ebo;
     glGenBuffers(1, &ebo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
@@ -141,9 +134,8 @@ int main() {
     glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
     
-    GLuint shad_prog = create_shader_program(common_vert_src, common_frag_src);
+    shad_prog = create_shader_program(common_vert_src, common_frag_src);
 
-    GLuint texture;
     glGenTextures(1, &texture);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture);
@@ -162,17 +154,44 @@ int main() {
 
     glUseProgram(shad_prog);
     glUniform1i(glGetUniformLocation(shad_prog, "texture0"), 0);
+}
 
+int main() {
+    init_opengl();
     check_error();
+
+    InitPhysics();
+    SetPhysicsGravity(0, -5);
+    PhysicsBody floor = CreatePhysicsBodyRectangle((Vector2){ 0, -window_height/2 }, window_width*2, 10, 10);
+    floor->enabled = false;
+    SetPhysicsBodyRotation(floor, 0.1);
+
+    CreatePhysicsBodyRectangle((Vector2){ 0, 100 }, 300, 200, 10);
+    CreatePhysicsBodyRectangle((Vector2){ 0, 500 }, 300, 200, 10);
+    CreatePhysicsBodyRectangle((Vector2){ 200, 900 }, 300, 200, 10);
+
     while (!glfwWindowShouldClose(window)) {
+        glClearColor(0.0, 0.0, 0.0, 1.0);
+        glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(shad_prog);
-
-        glUniform2fv(glGetUniformLocation(shad_prog, "mouse_pos"), 1, mouse_pos);
-
         glBindTexture(GL_TEXTURE_2D, texture);
         glBindVertexArray(vao);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        int body_count = GetPhysicsBodiesCount();
+        for (int bi = 0; bi < body_count; bi++) {
+            PhysicsBody body = GetPhysicsBody(bi);
+            int vertex_count = GetPhysicsShapeVerticesCount(bi);
+            // counterlock-wise, start from right bottom
+            for (int vi = 0; vi < vertex_count; vi++) {
+                Vector2 vertex = GetPhysicsShapeVertex(body, vi);
+                vertices[vi*4]     = vertex.x / window_width;
+                vertices[vi*4 + 1] = vertex.y / window_height;
+            };
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+            glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        }
+
         glfwPollEvents();
         glfwSwapBuffers(window);
     }
